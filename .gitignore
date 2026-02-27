@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.pyo
+
+.env
+.env.*
+
+*.xlsx
+*.xls
+
+*.png
+*.jpg
+*.jpeg
+
+.ipynb_checkpoints/
+
+.DS_Store
+Thumbs.db
+ ter

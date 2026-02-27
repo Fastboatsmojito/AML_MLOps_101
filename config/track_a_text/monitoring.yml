@@ -1,0 +1,71 @@
+$schema: https://azuremlschemas.azureedge.net/latest/schedule.schema.json
+
+name: contoso-lead-classifier-monitoring
+display_name: "Contoso Lead Classifier - Model Monitoring"
+description: >
+  Monitors data drift, prediction drift, and data quality for the
+  Contoso inspection lead classification model.
+
+trigger:
+  type: recurrence
+  frequency: week
+  interval: 1
+  schedule:
+    hours: [6]
+    minutes: [0]
+    week_days: [Monday]
+
+create_monitor:
+  compute:
+    instance_type: Standard_DS2_v2
+    runtime_version: "3.3"
+
+  monitoring_target:
+    ml_task: classification
+    endpoint_deployment_id: azureml:contoso-lead-classifier:lead-classifier-blue
+
+  monitoring_signals:
+
+    data_drift_signal:
+      type: data_drift
+      reference_data:
+        input_data:
+          path: azureml:classified-inspections@2
+          type: mltable
+        data_context: training
+        target_column_name: is_lead_opportunity
+      features:
+        top_n_feature_importance: 10
+      metric_thresholds:
+        - applicable_feature_type: numerical
+          metric_name: jensen_shannon_distance
+          threshold: 0.25
+        - applicable_feature_type: categorical
+          metric_name: pearsons_chi_squared_test
+          threshold: 0.3
+
+    prediction_drift_signal:
+      type: prediction_drift
+      metric_thresholds:
+        - applicable_feature_type: categorical
+          metric_name: pearsons_chi_squared_test
+          threshold: 0.3
+
+    data_quality_signal:
+      type: data_quality
+      reference_data:
+        input_data:
+          path: azureml:classified-inspections@2
+          type: mltable
+        data_context: training
+      metric_thresholds:
+        - applicable_feature_type: numerical
+          metric_name: null_value_rate
+          threshold: 0.1
+        - applicable_feature_type: categorical
+          metric_name: out_of_bound_rate
+          threshold: 0.1
+
+  alert_notification:
+    emails:
+      - <YOUR_EMAIL>

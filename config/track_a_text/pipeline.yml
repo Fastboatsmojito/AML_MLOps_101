@@ -1,0 +1,70 @@
+$schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
+
+type: pipeline
+display_name: contoso-lead-classifier-training-pipeline
+description: >
+  End-to-end training pipeline for the Contoso inspection lead classification model.
+  Steps: data prep -> train -> evaluate -> register.
+
+experiment_name: contoso-lead-classifier
+
+settings:
+  default_compute: azureml:cpu-cluster
+  default_datastore: azureml:workspaceblobstore
+
+jobs:
+
+  data_prep:
+    type: command
+    display_name: "Data Preparation"
+    code: ../../src/track_a_text
+    command: >-
+      python preprocess.py
+      --input-data ${{inputs.raw_data}}
+      --output-dir ${{outputs.prepared_data}}
+    environment:
+      conda_file: ../../environment/conda.yml
+      image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
+    inputs:
+      raw_data:
+        type: uri_file
+        path: azureml:classified-inspections@latest
+    outputs:
+      prepared_data:
+        type: uri_folder
+
+  train_model:
+    type: command
+    display_name: "Train Classifier"
+    code: ../../src/track_a_text
+    command: >-
+      python train.py
+      --input-data ${{inputs.training_data}}
+      --model-name logistic_regression
+      --max-features 5000
+      --test-size 0.2
+      --output-dir ${{outputs.model_output}}
+    environment:
+      conda_file: ../../environment/conda.yml
+      image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
+    inputs:
+      training_data: ${{parent.jobs.data_prep.outputs.prepared_data}}
+    outputs:
+      model_output:
+        type: uri_folder
+
+  evaluate_model:
+    type: command
+    display_name: "Evaluate Model"
+    code: ../../src/track_a_text
+    command: >-
+      python -c "
+      import json, os;
+      metrics_file = os.path.join('${{inputs.model_dir}}', 'classification_report.txt');
+      print(open(metrics_file).read()) if os.path.exists(metrics_file) else print('No report found')
+      "
+    environment:
+      conda_file: ../../environment/conda.yml
+      image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
+    inputs:
+      model_dir: ${{parent.jobs.train_model.outputs.model_output}}
